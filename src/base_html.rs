@@ -18,7 +18,7 @@ pub const BASE_HTML: &str = r#"
 	<body>
         <div class="headerbar">
             <div class="productname">
-              <a href=/ class="productname-link-style" > Note Server</a>
+              <a href=/ class="productname-link-style" > Notes Server</a>
             </div>
         </div>
 	</body>

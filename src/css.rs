@@ -82,6 +82,7 @@ body {
 .notes-panel {
     max-width: 800px;
     margin: 2rem auto;
+    padding: 0 1rem;
     background-color: #e6eff7;
 }   
 

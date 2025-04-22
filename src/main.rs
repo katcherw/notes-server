@@ -7,6 +7,7 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 use tiny_http::{Header, Server, Response};
 use orgize::Org;
+use pulldown_cmark::{Parser as MdParser, Options as MdOptions, html::push_html};
 
 mod base_html;
 mod css;
@@ -28,7 +29,10 @@ fn get_fnames(base_dir: &Path) -> Vec<PathBuf> {
     let walker = walkdir::WalkDir::new(&base_dir);
     for entry in walker.into_iter().filter_map(Result::ok) {
         if entry.file_type().is_file() &&
-            entry.path().extension().and_then(|s| s.to_str()) == Some("org") {
+            entry.path().extension()
+            .and_then(|s| s.to_str())
+            .map(|ext| ["org", "md"].contains(&ext))
+            == Some(true) {
                 if let Ok(suffix) = entry.path().strip_prefix(base_dir) {
                     fnames.push(suffix.to_path_buf());
                 }
@@ -73,6 +77,12 @@ fn parse_note_org(base_path: &Path, note_name: &str) -> String {
 
 // parses md file and returns html string
 fn parse_note_md(base_path: &Path, note_name: &str) -> String {
+    if let Ok(content) = fs::read_to_string(base_path.join(note_name)) {
+        let parser = MdParser::new_ext(&content, MdOptions::all());
+        let mut html_output = String::new();
+        push_html(&mut html_output, parser);
+        return html_output;
+    }
     String::new()
 }
 
