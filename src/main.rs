@@ -1,3 +1,7 @@
+/*
+ * Entry point and bulk of application.
+ */
+
 use std::fs;
 use clap::Parser;
 use std::path::{Path, PathBuf};
@@ -17,6 +21,8 @@ struct Args {
     dir: String,
 }
 
+// walks given directory tree and finds all supported files. Returns relative
+// file names.
 fn get_fnames(base_dir: &Path) -> Vec<PathBuf> {
     let mut fnames: Vec<PathBuf> = Vec::new();
     let walker = walkdir::WalkDir::new(&base_dir);
@@ -31,7 +37,8 @@ fn get_fnames(base_dir: &Path) -> Vec<PathBuf> {
     fnames
 }
 
-fn render_index_page(base_dir: &Path, files: &Vec<PathBuf>) -> String {
+// returns html string for main page showing list of files
+fn render_index_page(files: &Vec<PathBuf>) -> String {
     let mut html = String::from(css::CSS);
     html += base_html::BASE_HTML;
     html += "<body>";
@@ -54,6 +61,7 @@ fn render_index_page(base_dir: &Path, files: &Vec<PathBuf>) -> String {
     html
 }
 
+// parses org file and returns html string
 fn parse_note_org(base_path: &Path, note_name: &str) -> String {
     if let Ok(content) = fs::read_to_string(base_path.join(note_name)) {
         let mut writer = Vec::new();
@@ -63,10 +71,12 @@ fn parse_note_org(base_path: &Path, note_name: &str) -> String {
     String::new()
 }
 
+// parses md file and returns html string
 fn parse_note_md(base_path: &Path, note_name: &str) -> String {
     String::new()
 }
 
+// figures out what type of note it is and parses appropriate one
 fn parse_note(base_path: &Path, note_name: &str) -> String {
     if note_name.ends_with(".org") {
         return parse_note_org(base_path, note_name);
@@ -77,6 +87,7 @@ fn parse_note(base_path: &Path, note_name: &str) -> String {
     String::new()
 }
 
+// reads given note and returns formatted html for the page
 fn render_note(base_path: &Path, note_name: &str) -> String {
     let mut html = String::from(css::CSS);
     html += base_html::BASE_HTML;
@@ -94,6 +105,7 @@ fn render_note(base_path: &Path, note_name: &str) -> String {
     html
 }
 
+// runs the web server, displaying links for given file names. Never returns.
 fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
     let server = Server::http(("0.0.0.0", port)).unwrap();
     println!("Serving Org/Markdown files on http:))//localhost:{}", port);
@@ -105,7 +117,7 @@ fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
         println!("url: {}", url);
 
         if url == "/" {
-            let html_index = render_index_page(&base_path, &fnames);
+            let html_index = render_index_page(&fnames);
             let response = Response::from_string(html_index).with_header(header);
             let _ = request.respond(response);
         }
@@ -119,21 +131,6 @@ fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
             let response = Response::from_string("404 Not Found").with_status_code(404).with_header(header);
             let _ = request.respond(response);
         }
-        
-        // } else if url.starts_with("/search") {
-        //     let query = url.split('?').nth(1).unwrap_or("");
-        //     let query = form_urlencoded::parse(query.as_bytes()).find(|(k, _)| k == "q").map(|(_, v)| v.to_string()).unwrap_or_default();
-        //     let results = render_search_results(&map, &query);
-        //     let header = Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap();
-        //     let response = Response::from_string(results).with_header(header);
-        //     let _ = request.respond(response);
-        // } else {
-        //     let url_path = url.trim_start_matches('/');
-        //     if let Some(content) = map.get(url_path) {
-        //         let header = Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap();
-        //         let response = Response::from_string(content.clone()).with_header(header);
-        //         let _ = request.respond(response);
-        // }
     }
 }
 

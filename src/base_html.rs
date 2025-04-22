@@ -1,3 +1,7 @@
+/*
+ * Contains the common header and title bar as a constant to be added to the html string.
+ */
+
 pub const BASE_HTML: &str = r#"
 <!DOCTYPE html>
 <html lang="en">

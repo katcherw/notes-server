@@ -1,3 +1,7 @@
+/*
+ * Contains the css styles as a constant to be added to the html string.
+ */
+
 pub const CSS: &str = r#"
 <style>
 body {
