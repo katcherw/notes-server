@@ -1,0 +1,13 @@
+[package]
+name = "notes-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+orgize = "0.9"
+pulldown-cmark = "0.9"
+tiny_http = "0.12"
+notify = "6.1"
+clap = { version = "4.4", features = ["derive"] }
+walkdir = "2.4"
+form_urlencoded = "1.2"
