@@ -2,9 +2,8 @@
  * Entry point and bulk of application.
  */
 
-use std::any::Any;
 use std::fs;
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 use clap::Parser;
 use std::path::{Path, PathBuf};
 use tiny_http::{Header, Server, Response};
@@ -51,11 +50,6 @@ fn get_fnames(base_dir: &Path, blacklist_fname: &Option<PathBuf>) -> Vec<PathBuf
             continue;
         }
         
-        println!("{:?} extension {:?}", entry.path(), entry.path().extension());
-        let map_res = entry.path().extension()
-            .and_then(|s| s.to_str())
-            .map(|ext| ["org", "md"].contains(&ext));
-        println!("{:?} map_res {:?}", entry.path(), map_res);
         if !entry.path().extension()
             .and_then(|s| s.to_str())
             .map(|ext| ["org", "md"].contains(&ext))
@@ -189,4 +183,41 @@ fn main() {
     let fnames = get_fnames(&dir, &blacklist_fname);
 
     run_server(dir, &fnames, 8001);
+}
+
+// --------------------- tests -----------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::io::Write;
+
+    #[test]
+    fn test_get_fnames() {
+        // create a test directory in the tmp directory and verify that
+        // get_fnames finds correct files
+        
+        let tmpdir = tempdir().unwrap();
+        let dir = tmpdir.path();
+        let fnames = vec!["file1.org", "file2.md", "file3.txt", "file4.org"];
+        for fname in fnames {
+           _ = fs::File::create(&dir.join(fname));
+        }
+
+        // create a blacklist file
+        let blacklist_fname = dir.join("blacklist.txt");
+        let mut blacklist_file = fs::File::create(&blacklist_fname).unwrap();
+        _ = writeln!(blacklist_file, "file1.org");
+
+        let res = get_fnames(dir, &Some(blacklist_fname));
+        let res_fnames: Vec<_> = res
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+
+        assert_eq!(res_fnames.len(), 2);
+        assert!(res_fnames.contains(&"file2.md".to_string()));
+        assert!(res_fnames.contains(&"file4.org".to_string()));
+    }
 }

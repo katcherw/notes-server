@@ -11,3 +11,4 @@ notify = "6.1"
 clap = { version = "4.4", features = ["derive"] }
 walkdir = "2.4"
 form_urlencoded = "1.2"
+tempfile = "3"
