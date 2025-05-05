@@ -2,7 +2,9 @@
  * Entry point and bulk of application.
  */
 
+use std::any::Any;
 use std::fs;
+use std::io::{self, BufRead, BufReader};
 use clap::Parser;
 use std::path::{Path, PathBuf};
 use tiny_http::{Header, Server, Response};
@@ -20,23 +22,58 @@ const NOTES_URL_PREFIX: &str = "/notes/";
 struct Args {
     /// Directory containing .org and .md files
     dir: String,
+
+    /// list of files to ignore
+    #[arg(short, long)]
+    blacklist_file: Option<String>,
 }
 
 // walks given directory tree and finds all supported files. Returns relative
 // file names.
-fn get_fnames(base_dir: &Path) -> Vec<PathBuf> {
+fn get_fnames(base_dir: &Path, blacklist_fname: &Option<PathBuf>) -> Vec<PathBuf> {
+    // get files to be blacklisted
+    let mut blacklist_files: Vec<PathBuf> = Vec::new();
+    if let Some(blacklist_fname) = blacklist_fname { 
+        let file = fs::File::open(blacklist_fname);
+        if let Ok(f) = file {
+            let reader = BufReader::new(f);
+            for line in reader.lines().flatten() {
+                blacklist_files.push(PathBuf::from(line));
+            }
+        }
+    }
+
+    // find files in directory tree and filter out blacklisted files
     let mut fnames: Vec<PathBuf> = Vec::new();
     let walker = walkdir::WalkDir::new(&base_dir);
     for entry in walker.into_iter().filter_map(Result::ok) {
-        if entry.file_type().is_file() &&
-            entry.path().extension()
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        
+        println!("{:?} extension {:?}", entry.path(), entry.path().extension());
+        let map_res = entry.path().extension()
+            .and_then(|s| s.to_str())
+            .map(|ext| ["org", "md"].contains(&ext));
+        println!("{:?} map_res {:?}", entry.path(), map_res);
+        if !entry.path().extension()
             .and_then(|s| s.to_str())
             .map(|ext| ["org", "md"].contains(&ext))
-            == Some(true) {
-                if let Ok(suffix) = entry.path().strip_prefix(base_dir) {
-                    fnames.push(suffix.to_path_buf());
-                }
+            .unwrap_or(false) 
+            {
+                continue;
+            }
+        
+        let suffix = match entry.path().strip_prefix(base_dir) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        if blacklist_files.contains(&suffix.to_path_buf()) {
+            continue;
         }
+        
+        fnames.push(suffix.to_path_buf());
     }
     fnames
 }
@@ -147,8 +184,9 @@ fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
 fn main() {
     let args = Args::parse();
     let dir = Path::new(&args.dir);
+    let blacklist_fname = args.blacklist_file.map(PathBuf::from);
     
-    let fnames = get_fnames(&dir);
+    let fnames = get_fnames(&dir, &blacklist_fname);
 
     run_server(dir, &fnames, 8001);
 }
