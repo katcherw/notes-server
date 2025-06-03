@@ -20,7 +20,7 @@ const NOTES_URL_PREFIX: &str = "/notes/";
 #[command(about = "View your org and md files in a web browser")]
 struct Args {
     /// Directory containing .org and .md files
-    dir: String,
+    dir: PathBuf,
 
     /// list of files to ignore
     #[arg(short, long)]
@@ -29,10 +29,10 @@ struct Args {
 
 // walks given directory tree and finds all supported files. Returns relative
 // file names.
-fn get_fnames(base_dir: &Path, blacklist_fname: &Option<PathBuf>) -> Vec<PathBuf> {
+fn get_fnames(args: &Args) -> Vec<PathBuf> {
     // get files to be blacklisted
     let mut blacklist_files: Vec<PathBuf> = Vec::new();
-    if let Some(blacklist_fname) = blacklist_fname { 
+    if let Some(blacklist_fname) = &args.blacklist_file { 
         let file = fs::File::open(blacklist_fname);
         if let Ok(f) = file {
             let reader = BufReader::new(f);
@@ -44,7 +44,7 @@ fn get_fnames(base_dir: &Path, blacklist_fname: &Option<PathBuf>) -> Vec<PathBuf
 
     // find files in directory tree and filter out blacklisted files
     let mut fnames: Vec<PathBuf> = Vec::new();
-    let walker = walkdir::WalkDir::new(&base_dir);
+    let walker = walkdir::WalkDir::new(&args.dir);
     for entry in walker.into_iter().filter_map(Result::ok) {
         if !entry.file_type().is_file() {
             continue;
@@ -58,7 +58,7 @@ fn get_fnames(base_dir: &Path, blacklist_fname: &Option<PathBuf>) -> Vec<PathBuf
                 continue;
             }
         
-        let suffix = match entry.path().strip_prefix(base_dir) {
+        let suffix = match entry.path().strip_prefix(&args.dir) {
             Ok(p) => p,
             Err(_) => continue,
         };
@@ -97,8 +97,8 @@ fn render_index_page(files: &Vec<PathBuf>) -> String {
 }
 
 // parses org file and returns html string
-fn parse_note_org(base_path: &Path, note_name: &str) -> String {
-    if let Ok(content) = fs::read_to_string(base_path.join(note_name)) {
+fn parse_note_org(args: &Args, note_name: &str) -> String {
+    if let Ok(content) = fs::read_to_string(args.dir.join(note_name)) {
         let mut writer = Vec::new();
         Org::parse(&content).write_html(&mut writer).unwrap();
         return String::from_utf8(writer).unwrap();
@@ -107,8 +107,8 @@ fn parse_note_org(base_path: &Path, note_name: &str) -> String {
 }
 
 // parses md file and returns html string
-fn parse_note_md(base_path: &Path, note_name: &str) -> String {
-    if let Ok(content) = fs::read_to_string(base_path.join(note_name)) {
+fn parse_note_md(args: &Args, note_name: &str) -> String {
+    if let Ok(content) = fs::read_to_string(args.dir.join(note_name)) {
         let parser = MdParser::new_ext(&content, MdOptions::all());
         let mut html_output = String::new();
         push_html(&mut html_output, parser);
@@ -118,18 +118,18 @@ fn parse_note_md(base_path: &Path, note_name: &str) -> String {
 }
 
 // figures out what type of note it is and parses appropriate one
-fn parse_note(base_path: &Path, note_name: &str) -> String {
+fn parse_note(args: &Args, note_name: &str) -> String {
     if note_name.ends_with(".org") {
-        return parse_note_org(base_path, note_name);
+        return parse_note_org(&args, note_name);
     }
     else if note_name.ends_with(".md") {
-        return parse_note_md(base_path, note_name);
+        return parse_note_md(&args, note_name);
     }
     String::new()
 }
 
 // reads given note and returns formatted html for the page
-fn render_note(base_path: &Path, note_name: &str) -> String {
+fn render_note(args: &Args, note_name: &str) -> String {
     let mut html = String::from(css::CSS);
     html += base_html::BASE_HTML;
     html += "<body>";
@@ -138,7 +138,7 @@ fn render_note(base_path: &Path, note_name: &str) -> String {
     html.push_str(r#"</div>"#);
     html.push_str(r#"<div class="notes-panel">"#);
 
-    let html_note = parse_note(&base_path, &note_name);
+    let html_note = parse_note(&args, &note_name);
     html.push_str(&html_note);
 
     html.push_str(r#"</div>"#);
@@ -147,7 +147,7 @@ fn render_note(base_path: &Path, note_name: &str) -> String {
 }
 
 // runs the web server, displaying links for given file names. Never returns.
-fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
+fn run_server(args: &Args, fnames: &Vec<PathBuf>, port: u16) {
     let server = Server::http(("0.0.0.0", port)).unwrap();
     println!("Serving Org/Markdown files on http:))//localhost:{}", port);
 
@@ -164,7 +164,7 @@ fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
         }
         else if url.starts_with(NOTES_URL_PREFIX) {
             let note_name = url.strip_prefix(NOTES_URL_PREFIX).unwrap();
-            let html = render_note(&base_path, &note_name);
+            let html = render_note(&args, &note_name);
             let response = Response::from_string(html).with_header(header);
             let _ = request.respond(response);
         }
@@ -177,12 +177,10 @@ fn run_server(base_path: &Path, fnames: &Vec<PathBuf>, port: u16) {
 
 fn main() {
     let args = Args::parse();
-    let dir = Path::new(&args.dir);
-    let blacklist_fname = args.blacklist_file.map(PathBuf::from);
     
-    let fnames = get_fnames(&dir, &blacklist_fname);
+    let fnames = get_fnames(&args);
 
-    run_server(dir, &fnames, 8001);
+    run_server(&args, &fnames, 8001);
 }
 
 // --------------------- tests -----------------------
