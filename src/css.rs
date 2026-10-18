@@ -46,12 +46,12 @@ body {
     flex: 1;
     padding: 0.5rem;
     font-size: 1rem;
-    height: 2.5 rem;
+    height: 2.5rem;
 }
 
 .search-bar button {
     padding: 0.5rem 1rem;
-    height: 2.5 rem;
+    height: 2.5rem;
     font-size: 1rem;
     background-color: #007bff;
     color: white;

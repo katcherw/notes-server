@@ -7,7 +7,6 @@ edition = "2021"
 orgize = "0.9"
 pulldown-cmark = "0.9"
 tiny_http = "0.12"
-notify = "6.1"
 clap = { version = "4.4", features = ["derive"] }
 walkdir = "2.4"
 form_urlencoded = "1.2"

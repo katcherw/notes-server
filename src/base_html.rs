@@ -21,6 +21,4 @@ pub const BASE_HTML: &str = r#"
               <a href=/ class="productname-link-style" > Notes Server</a>
             </div>
         </div>
-	</body>
-</html>
 "#;

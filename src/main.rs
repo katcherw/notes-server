@@ -5,7 +5,7 @@
 use std::fs;
 use std::io::{BufRead, BufReader};
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tiny_http::{Header, Server, Response};
 use orgize::Org;
 use pulldown_cmark::{Parser as MdParser, Options as MdOptions, html::push_html};
@@ -76,7 +76,6 @@ fn get_fnames(args: &Args) -> Vec<PathBuf> {
 fn render_index_page(files: &Vec<PathBuf>) -> String {
     let mut html = String::from(css::CSS);
     html += base_html::BASE_HTML;
-    html += "<body>";
     html.push_str(r#"<div class="index-panel">"#);
     html.push_str(r#"<div class="search-bar">"#);
       html.push_str(r#"<input type="text" placeholder="Search..." />"#);
@@ -120,10 +119,10 @@ fn parse_note_md(args: &Args, note_name: &str) -> String {
 // figures out what type of note it is and parses appropriate one
 fn parse_note(args: &Args, note_name: &str) -> String {
     if note_name.ends_with(".org") {
-        return parse_note_org(&args, note_name);
+        return parse_note_org(args, note_name);
     }
     else if note_name.ends_with(".md") {
-        return parse_note_md(&args, note_name);
+        return parse_note_md(args, note_name);
     }
     String::new()
 }
@@ -132,13 +131,12 @@ fn parse_note(args: &Args, note_name: &str) -> String {
 fn render_note(args: &Args, note_name: &str) -> String {
     let mut html = String::from(css::CSS);
     html += base_html::BASE_HTML;
-    html += "<body>";
     html.push_str(r#"<div class="note-titlebar">"#);
     html.push_str(note_name);
     html.push_str(r#"</div>"#);
     html.push_str(r#"<div class="notes-panel">"#);
 
-    let html_note = parse_note(&args, &note_name);
+    let html_note = parse_note(args, note_name);
     html.push_str(&html_note);
 
     html.push_str(r#"</div>"#);
@@ -149,7 +147,7 @@ fn render_note(args: &Args, note_name: &str) -> String {
 // runs the web server, displaying links for given file names. Never returns.
 fn run_server(args: &Args, fnames: &Vec<PathBuf>, port: u16) {
     let server = Server::http(("0.0.0.0", port)).unwrap();
-    println!("Serving Org/Markdown files on http:))//localhost:{}", port);
+    println!("Serving Org/Markdown files on http://localhost:{}", port);
 
     for request in server.incoming_requests() {
         let url = request.url();
@@ -164,9 +162,15 @@ fn run_server(args: &Args, fnames: &Vec<PathBuf>, port: u16) {
         }
         else if url.starts_with(NOTES_URL_PREFIX) {
             let note_name = url.strip_prefix(NOTES_URL_PREFIX).unwrap();
-            let html = render_note(&args, &note_name);
-            let response = Response::from_string(html).with_header(header);
-            let _ = request.respond(response);
+            // Validate note exists in whitelist to prevent path traversal
+            if fnames.iter().any(|f| f.to_string_lossy() == note_name) {
+                let html = render_note(args, note_name);
+                let response = Response::from_string(html).with_header(header);
+                let _ = request.respond(response);
+            } else {
+                let response = Response::from_string("404 Not Found").with_status_code(404).with_header(header);
+                let _ = request.respond(response);
+            }
         }
         else {
             let response = Response::from_string("404 Not Found").with_status_code(404).with_header(header);
@@ -195,12 +199,12 @@ mod tests {
     fn test_get_fnames() {
         // create a test directory in the tmp directory and verify that
         // get_fnames finds correct files
-        
+
         let tmpdir = tempdir().unwrap();
         let dir = tmpdir.path();
         let fnames = vec!["file1.org", "file2.md", "file3.txt", "file4.org"];
         for fname in fnames {
-           _ = fs::File::create(&dir.join(fname));
+           _ = fs::File::create(dir.join(fname));
         }
 
         // create a blacklist file
@@ -208,7 +212,12 @@ mod tests {
         let mut blacklist_file = fs::File::create(&blacklist_fname).unwrap();
         _ = writeln!(blacklist_file, "file1.org");
 
-        let res = get_fnames(dir, &Some(blacklist_fname));
+        let args = Args {
+            dir: dir.to_path_buf(),
+            blacklist_file: Some(blacklist_fname.to_string_lossy().to_string()),
+        };
+
+        let res = get_fnames(&args);
         let res_fnames: Vec<_> = res
             .iter()
             .map(|p| p.to_string_lossy().to_string())
